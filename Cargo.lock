@@ -511,7 +511,7 @@ dependencies = [
  "bincode",
  "criterion",
  "hex",
- "hybrid-array",
+ "hybrid-array 0.2.3",
  "openssl-sys",
  "postcard",
  "rand_chacha",
@@ -716,6 +716,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hybrid-array"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dab50e193aebe510fe0e40230145820e02f48dae0cf339ea4204e6e708ff7bd"
+dependencies = [
+ "typenum",
+ "zeroize",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -878,7 +888,7 @@ dependencies = [
  "crypto-common",
  "hex",
  "hex-literal",
- "hybrid-array",
+ "hybrid-array 0.2.3",
  "kem",
  "num-rational",
  "rand",
@@ -886,6 +896,15 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "zeroize",
+]
+
+[[package]]
+name = "module-lattice"
+version = "0.1.0"
+dependencies = [
+ "hybrid-array 0.3.0",
+ "num-traits",
  "zeroize",
 ]
 
