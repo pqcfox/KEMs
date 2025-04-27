@@ -15,87 +15,24 @@ use core::ops::{Add, Div, Mul, Rem, Sub};
 
 use hybrid_array::{
     typenum::{
-        operator_aliases::{Gcf, Prod, Quot, Sum},
-        type_operators::Gcd,
-        Const, ToUInt, U0, U12, U16, U2, U3, U32, U384, U4, U6, U64, U8,
+        operator_aliases::{Prod, Sum},
+        Const, ToUInt, U0, U12, U16, U2, U3, U32, U384, U4, U6, U64,
     },
     Array,
 };
 
-use crate::algebra::{FieldElement, NttVector};
-use crate::encode::Encode;
-use crate::util::{Flatten, Unflatten, B32};
-
-/// An array length with other useful properties
-pub trait ArraySize: hybrid_array::ArraySize + PartialEq + Debug {}
-
-impl<T> ArraySize for T where T: hybrid_array::ArraySize + PartialEq + Debug {}
-
-/// An integer that can be used as a length for encoded values.
-pub trait EncodingSize: ArraySize {
-    type EncodedPolynomialSize: ArraySize;
-    type ValueStep: ArraySize;
-    type ByteStep: ArraySize;
-}
-
-type EncodingUnit<D> = Quot<Prod<D, U8>, Gcf<D, U8>>;
-
-pub type EncodedPolynomialSize<D> = <D as EncodingSize>::EncodedPolynomialSize;
-pub type EncodedPolynomial<D> = Array<u8, EncodedPolynomialSize<D>>;
-
-impl<D> EncodingSize for D
-where
-    D: ArraySize + Mul<U8> + Gcd<U8> + Mul<U32>,
-    Prod<D, U32>: ArraySize,
-    Prod<D, U8>: Div<Gcf<D, U8>>,
-    EncodingUnit<D>: Div<D> + Div<U8>,
-    Quot<EncodingUnit<D>, D>: ArraySize,
-    Quot<EncodingUnit<D>, U8>: ArraySize,
-{
-    type EncodedPolynomialSize = Prod<D, U32>;
-    type ValueStep = Quot<EncodingUnit<D>, D>;
-    type ByteStep = Quot<EncodingUnit<D>, U8>;
-}
-
-/// An integer that can describe encoded vectors.
-pub trait VectorEncodingSize<K>: EncodingSize
-where
-    K: ArraySize,
-{
-    type EncodedPolynomialVectorSize: ArraySize;
-
-    fn flatten(polys: Array<EncodedPolynomial<Self>, K>) -> EncodedPolynomialVector<Self, K>;
-    fn unflatten(vec: &EncodedPolynomialVector<Self, K>) -> Array<&EncodedPolynomial<Self>, K>;
-}
-
-pub type EncodedPolynomialVectorSize<D, K> =
-    <D as VectorEncodingSize<K>>::EncodedPolynomialVectorSize;
-pub type EncodedPolynomialVector<D, K> = Array<u8, EncodedPolynomialVectorSize<D, K>>;
-
-impl<D, K> VectorEncodingSize<K> for D
-where
-    D: EncodingSize,
-    K: ArraySize,
-    D::EncodedPolynomialSize: Mul<K>,
-    Prod<D::EncodedPolynomialSize, K>:
-        ArraySize + Div<K, Output = D::EncodedPolynomialSize> + Rem<K, Output = U0>,
-{
-    type EncodedPolynomialVectorSize = Prod<D::EncodedPolynomialSize, K>;
-
-    fn flatten(polys: Array<EncodedPolynomial<Self>, K>) -> EncodedPolynomialVector<Self, K> {
-        polys.flatten()
-    }
-
-    fn unflatten(vec: &EncodedPolynomialVector<Self, K>) -> Array<&EncodedPolynomial<Self>, K> {
-        vec.unflatten()
-    }
-}
+use crate::algebra::{BaseField, Elem, Field, NttVector};
+use crate::util::B32;
+pub use module_lattice::encode::{
+    ArraySize, Encode, EncodedPolynomial, EncodedPolynomialSize, EncodedVector, EncodedVectorSize,
+    EncodingSize, VectorEncodingSize,
+};
 
 /// An integer that describes a bit length to be used in CBD sampling
 pub trait CbdSamplingSize: ArraySize {
     type SampleSize: EncodingSize;
     type OnesSize: ArraySize;
-    const ONES: Array<FieldElement, Self::OnesSize>;
+    const ONES: Array<Elem, Self::OnesSize>;
 }
 
 // To speed up CBD sampling, we pre-compute all the bit-manipulations:
@@ -107,13 +44,13 @@ pub trait CbdSamplingSize: ArraySize {
 // We have to allow the use of `as` here because we can't use our nice Truncate trait, because
 // const functions don't support traits.
 #[allow(clippy::cast_possible_truncation)]
-const fn ones_array<const B: usize, const N: usize, U>() -> Array<FieldElement, U>
+const fn ones_array<const B: usize, const N: usize, U>() -> Array<Elem, U>
 where
-    U: ArraySize<ArrayType<FieldElement> = [FieldElement; N]>,
+    U: ArraySize<ArrayType<Elem> = [Elem; N]>,
     Const<N>: ToUInt<Output = U>,
 {
     let max = 1 << B;
-    let mut out = [FieldElement(0); N];
+    let mut out = [Elem::new(0); N];
     let mut x = 0usize;
     while x < max {
         let mut y = 0usize;
@@ -122,7 +59,7 @@ where
             let x_ones = x.count_ones() as u16;
             let y_ones = y.count_ones() as u16;
             let i = x + (y << B);
-            out[i] = FieldElement((x_ones + FieldElement::Q - y_ones) % FieldElement::Q);
+            out[i] = Elem::new((x_ones + BaseField::Q - y_ones) % BaseField::Q);
 
             y += 1;
         }
@@ -134,13 +71,13 @@ where
 impl CbdSamplingSize for U2 {
     type SampleSize = U4;
     type OnesSize = U16;
-    const ONES: Array<FieldElement, U16> = ones_array::<2, 16, U16>();
+    const ONES: Array<Elem, U16> = ones_array::<2, 16, U16>();
 }
 
 impl CbdSamplingSize for U3 {
     type SampleSize = U6;
     type OnesSize = U64;
-    const ONES: Array<FieldElement, U64> = ones_array::<3, 64, U64>();
+    const ONES: Array<Elem, U64> = ones_array::<3, 64, U64>();
 }
 
 /// A `ParameterSet` captures the parameters that describe a particular instance of ML-KEM.  There
@@ -164,7 +101,7 @@ pub trait ParameterSet: Default + Clone + Debug + PartialEq {
     type Dv: EncodingSize;
 }
 
-type EncodedUSize<P> = EncodedPolynomialVectorSize<<P as ParameterSet>::Du, <P as ParameterSet>::K>;
+type EncodedUSize<P> = EncodedVectorSize<<P as ParameterSet>::Du, <P as ParameterSet>::K>;
 type EncodedVSize<P> = EncodedPolynomialSize<<P as ParameterSet>::Dv>;
 
 type EncodedU<P> = Array<u8, EncodedUSize<P>>;
@@ -199,11 +136,11 @@ where
     EncodedUSize<P>: Add<EncodedVSize<P>>,
     Sum<EncodedUSize<P>, EncodedVSize<P>>:
         ArraySize + Sub<EncodedUSize<P>, Output = EncodedVSize<P>>,
-    EncodedPolynomialVectorSize<U12, P::K>: Add<U32>,
-    Sum<EncodedPolynomialVectorSize<U12, P::K>, U32>:
-        ArraySize + Sub<EncodedPolynomialVectorSize<U12, P::K>, Output = U32>,
+    EncodedVectorSize<U12, P::K>: Add<U32>,
+    Sum<EncodedVectorSize<U12, P::K>, U32>:
+        ArraySize + Sub<EncodedVectorSize<U12, P::K>, Output = U32>,
 {
-    type NttVectorSize = EncodedPolynomialVectorSize<U12, P::K>;
+    type NttVectorSize = EncodedVectorSize<U12, P::K>;
     type EncryptionKeySize = Sum<Self::NttVectorSize, U32>;
     type CiphertextSize = Sum<EncodedUSize<P>, EncodedVSize<P>>;
 

@@ -1,11 +1,11 @@
 use hybrid_array::typenum::{Unsigned, U1};
 
-use crate::algebra::{NttMatrix, NttVector, Polynomial, PolynomialVector};
+use crate::algebra::{Ntt, NttInverse, NttMatrix, NttVector, Polynomial, SampleCBD, Vector};
 use crate::compress::Compress;
 use crate::crypto::{G, PRF};
-use crate::encode::Encode;
 use crate::param::{EncodedCiphertext, EncodedDecryptionKey, EncodedEncryptionKey, PkeParams};
 use crate::util::B32;
+use module_lattice::encode::Encode;
 
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
@@ -42,9 +42,9 @@ where
         let (rho, sigma) = G(&[&d[..], &[k]]);
 
         // Sample pseudo-random matrix and vectors
-        let A_hat: NttMatrix<P::K> = NttMatrix::sample_uniform(&rho, false);
-        let s: PolynomialVector<P::K> = PolynomialVector::sample_cbd::<P::Eta1>(&sigma, 0);
-        let e: PolynomialVector<P::K> = PolynomialVector::sample_cbd::<P::Eta1>(&sigma, P::K::U8);
+        let A_hat: NttMatrix<P::K, P::K> = NttMatrix::sample_uniform(&rho, false);
+        let s: Vector<P::K> = Vector::sample_cbd::<P::Eta1>(&sigma, 0);
+        let e: Vector<P::K> = Vector::sample_cbd::<P::Eta1>(&sigma, P::K::U8);
 
         // NTT the vectors
         let s_hat = s.ntt();
@@ -64,7 +64,7 @@ where
     pub fn decrypt(&self, ciphertext: &EncodedCiphertext<P>) -> B32 {
         let (c1, c2) = P::split_ct(ciphertext);
 
-        let mut u: PolynomialVector<P::K> = Encode::<P::Du>::decode(c1);
+        let mut u: Vector<P::K> = Encode::<P::Du>::decode(c1);
         u.decompress::<P::Du>();
 
         let mut v: Polynomial = Encode::<P::Dv>::decode(c2);
@@ -106,15 +106,15 @@ where
     /// Encrypt the specified message for the holder of the corresponding decryption key, using the
     /// provided randomness, according the `K-PKE.Encrypt` procedure.
     pub fn encrypt(&self, message: &B32, randomness: &B32) -> EncodedCiphertext<P> {
-        let r = PolynomialVector::<P::K>::sample_cbd::<P::Eta1>(randomness, 0);
-        let e1 = PolynomialVector::<P::K>::sample_cbd::<P::Eta2>(randomness, P::K::U8);
+        let r = Vector::<P::K>::sample_cbd::<P::Eta1>(randomness, 0);
+        let e1 = Vector::<P::K>::sample_cbd::<P::Eta2>(randomness, P::K::U8);
 
         let prf_output = PRF::<P::Eta2>(randomness, 2 * P::K::U8);
         let e2: Polynomial = Polynomial::sample_cbd::<P::Eta2>(&prf_output);
 
-        let A_hat_t = NttMatrix::<P::K>::sample_uniform(&self.rho, true);
+        let A_hat_t = NttMatrix::<P::K, P::K>::sample_uniform(&self.rho, true);
         let r_hat: NttVector<P::K> = r.ntt();
-        let ATr: PolynomialVector<P::K> = (&A_hat_t * &r_hat).ntt_inverse();
+        let ATr: Vector<P::K> = (&A_hat_t * &r_hat).ntt_inverse();
         let mut u = ATr + e1;
 
         let mut mu: Polynomial = Encode::<U1>::decode(message);

@@ -2,8 +2,8 @@ use core::mem::ManuallyDrop;
 use core::ops::{Div, Mul, Rem};
 use core::ptr;
 use hybrid_array::{
+    typenum::{Prod, Quot, Unsigned, U0},
     Array, ArraySize,
-    typenum::{Prod, Quot, U0, Unsigned},
 };
 
 /// Safely truncate an unsigned integer value to shorter representation
@@ -25,12 +25,15 @@ macro_rules! define_truncate {
     };
 }
 
+define_truncate!(u128, u16);
 define_truncate!(u128, u32);
+define_truncate!(u64, u16);
 define_truncate!(u64, u32);
+define_truncate!(u32, u16);
 define_truncate!(usize, u8);
 define_truncate!(usize, u16);
 
-/// Defines a sequence of sequences that can be merged into a bigger overall seequence
+/// Defines a sequence of sequences that can be merged into a bigger overall sequence
 pub trait Flatten<T, M: ArraySize> {
     type OutputSize: ArraySize;
 
@@ -109,8 +112,8 @@ where
 mod test {
     use super::*;
     use hybrid_array::{
-        Array,
         typenum::{U2, U5},
+        Array,
     };
 
     #[test]

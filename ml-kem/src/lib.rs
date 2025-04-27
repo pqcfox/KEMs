@@ -53,9 +53,6 @@ mod crypto;
 /// Section 4.2.1. Conversion and Compression Algorithms, Compression and decompression
 mod compress;
 
-/// Section 4.2.1. Conversion and Compression Algorithms, Encoding and decoding
-mod encode;
-
 /// Section 5. The K-PKE Component Scheme
 mod pke;
 

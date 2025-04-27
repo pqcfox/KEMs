@@ -2,7 +2,7 @@ use super::util::Truncate;
 
 use core::fmt::Debug;
 use core::ops::{Add, Mul, Neg, Sub};
-use hybrid_array::{Array, ArraySize, typenum::U256};
+use hybrid_array::{typenum::U256, Array, ArraySize};
 use num_traits::PrimInt;
 
 #[cfg(feature = "zeroize")]
@@ -55,7 +55,11 @@ macro_rules! define_field {
             const BARRETT_MULTIPLIER: Self::LongLong = (1 << Self::BARRETT_SHIFT) / Self::QLL;
 
             fn small_reduce(x: Self::Int) -> Self::Int {
-                if x < Self::Q { x } else { x - Self::Q }
+                if x < Self::Q {
+                    x
+                } else {
+                    x - Self::Q
+                }
             }
 
             fn barrett_reduce(x: Self::Long) -> Self::Int {
@@ -324,6 +328,18 @@ impl<F: Field> Neg for &NttPolynomial<F> {
 
     fn neg(self) -> NttPolynomial<F> {
         NttPolynomial(self.0.iter().map(|&x| -x).collect())
+    }
+}
+
+impl<F: Field> From<Array<Elem<F>, U256>> for NttPolynomial<F> {
+    fn from(f: Array<Elem<F>, U256>) -> NttPolynomial<F> {
+        NttPolynomial(f)
+    }
+}
+
+impl<F: Field> From<NttPolynomial<F>> for Array<Elem<F>, U256> {
+    fn from(f_hat: NttPolynomial<F>) -> Array<Elem<F>, U256> {
+        f_hat.0
     }
 }
 
