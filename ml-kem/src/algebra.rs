@@ -51,10 +51,9 @@ impl BaseCaseMultiply for Elem {
 }
 
 pub trait SamplePolyCbd {
-    fn sample_cbd<Eta, K>(B: &PrfOutput<Eta>) -> Self
+    fn sample_cbd<Eta>(B: &PrfOutput<Eta>) -> Self
     where
-        Eta: CbdSamplingSize,
-        K: ArraySize;
+        Eta: CbdSamplingSize;
 }
 
 impl SamplePolyCbd for Polynomial {
@@ -63,10 +62,9 @@ impl SamplePolyCbd for Polynomial {
     // To avoid all the bitwise manipulation in the algorithm as written, we reuse the logic in
     // ByteDecode.  We decode the PRF output into integers with eta bits, then use
     // `count_ones` to perform the summation described in the algorithm.
-    fn sample_cbd<Eta, K>(B: &PrfOutput<Eta>) -> Polynomial
+    fn sample_cbd<Eta>(B: &PrfOutput<Eta>) -> Polynomial
     where
         Eta: CbdSamplingSize,
-        K: ArraySize,
     {
         let vals: Polynomial = Encode::<Eta::SampleSize>::decode(B);
         Polynomial::new(vals.0.iter().map(|val| Eta::ONES[val.0 as usize]).collect())
@@ -74,17 +72,15 @@ impl SamplePolyCbd for Polynomial {
 }
 
 pub trait SampleCbd {
-    fn sample_cbd<Eta, F>(sigma: &B32, start_n: u8) -> Self
+    fn sample_cbd<Eta>(sigma: &B32, start_n: u8) -> Self
     where
-        Eta: CbdSamplingSize,
-        F: Field;
+        Eta: CbdSamplingSize;
 }
 
 impl<K: ArraySize> SampleCbd for Vector<K> {
-    fn sample_cbd<Eta, F>(sigma: &B32, start_n: u8) -> Vector<K>
+    fn sample_cbd<Eta>(sigma: &B32, start_n: u8) -> Vector<K>
     where
         Eta: CbdSamplingSize,
-        F: Field,
     {
         Vector::new(Array::from_fn(|i| {
             let N = start_n + u8::truncate(i);
@@ -149,13 +145,19 @@ impl<'a> FieldElementReader<'a> {
     }
 }
 
-impl NttPolynomial {
+pub trait SampleUniform {
+    fn sample_uniform(B: &mut impl XofReader) -> Self;
+}
+
+impl SampleUniform for NttPolynomial{
     // Algorithm 6 SampleNTT(B)
-    pub fn sample_uniform(B: &mut impl XofReader) -> Self {
+    fn sample_uniform(B: &mut impl XofReader) -> Self {
         let mut reader = FieldElementReader::new(B);
         Self(Array::from_fn(|_| reader.next()))
     }
 }
+
+
 
 // Since the powers of zeta used in the NTT and MultiplyNTTs are fixed, we use pre-computed tables
 // to avoid the need to compute the exponetiations at runtime.
@@ -336,12 +338,28 @@ impl<K: ArraySize> NttInverse for NttVector<K> {
     }
 }
 
-impl<K: ArraySize> NttVector<K> {
-    pub fn sample_uniform(rho: &B32, i: usize, transpose: bool) -> Self {
+pub trait SampleVectorUniform {
+    fn sample_uniform(rho: &B32, i: usize, transpose: bool) -> Self;
+}
+
+impl<K: ArraySize> SampleVectorUniform for NttVector<K> {
+    fn sample_uniform(rho: &B32, i: usize, transpose: bool) -> Self {
         Self(Array::from_fn(|j| {
             let (i, j) = if transpose { (j, i) } else { (i, j) };
-            let mut xof = XOF(rho, j.truncate(), i.truncate());
+            let mut xof = XOF(rho, u8::truncate(j), u8::truncate(i));
             NttPolynomial::sample_uniform(&mut xof)
+        }))
+    }
+}
+
+pub trait SampleMatrixUniform {
+    fn sample_uniform(rho: &B32, transpose: bool) -> Self;
+}
+
+impl<K: ArraySize, L: ArraySize> SampleMatrixUniform for NttMatrix<K, L> {
+    fn sample_uniform(rho: &B32, transpose: bool) -> Self {
+        Self(Array::from_fn(|i| {
+            NttVector::sample_uniform(rho, i, transpose)
         }))
     }
 }

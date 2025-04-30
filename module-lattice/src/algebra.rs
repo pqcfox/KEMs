@@ -431,6 +431,14 @@ impl<F: Field, K: ArraySize, L: ArraySize> NttMatrix<F, K, L> {
     pub const fn new(x: Array<NttVector<F, L>, K>) -> Self {
         Self(x)
     }
+
+
+    //swap K and L to avoid transpose error
+    pub fn transpose(&self) -> NttMatrix<F, L, K>{
+        NttMatrix::<F, L, K>(Array::from_fn(|i| {
+            NttVector(Array::from_fn(|j| self.0[j].0[i].clone()))
+        }))
+    }
 }
 
 impl<F: Field, K: ArraySize, L: ArraySize> Mul<&NttVector<F, L>> for &NttMatrix<F, K, L>

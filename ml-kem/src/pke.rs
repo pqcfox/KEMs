@@ -6,6 +6,9 @@ use crate::crypto::{G, PRF};
 use crate::param::{EncodedCiphertext, EncodedDecryptionKey, EncodedEncryptionKey, PkeParams};
 use crate::util::B32;
 use module_lattice::encode::Encode;
+use crate::algebra::SamplePolyCbd;
+use crate::algebra::SampleCbd;
+use crate::algebra::SampleMatrixUniform;
 
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
